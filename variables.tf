@@ -284,7 +284,7 @@ variable "trusted_entities" {
 variable "ecs_fargate_spot" {
   description = "Whether to run ECS Fargate Spot or not"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "ecs_container_insights" {
