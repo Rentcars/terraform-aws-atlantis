@@ -10,8 +10,8 @@ workflows:
       - env:
           name: TERRAGRUNT_TFPATH
           command: 'echo "terraform${ATLANTIS_TERRAFORM_VERSION}"'
-      - run: terragrunt plan -no-color -out=$PLANFILE
-      - run: terragrunt show -no-color -json $PLANFILE > $SHOWFILE
+      - run: terragrunt plan -no-color --terragrunt-non-interactive -out=$PLANFILE
+      - run: terragrunt show -no-color --terragrunt-non-interactive -json $PLANFILE > $SHOWFILE
       - run: infracost breakdown --path $SHOWFILE --no-color true
       - run: infracost diff --path $SHOWFILE --no-color true
     apply:
@@ -19,4 +19,4 @@ workflows:
       - env:
           name: TERRAGRUNT_TFPATH
           command: 'echo "terraform${ATLANTIS_TERRAFORM_VERSION}"'
-      - run: terragrunt apply -no-color $PLANFILE
+      - run: terragrunt apply -no-color --terragrunt-non-interactive $PLANFILE
