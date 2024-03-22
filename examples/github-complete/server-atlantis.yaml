@@ -3,6 +3,7 @@ repos:
   workflow: terragrunt
   apply_requirements: [mergeable, approved]
   delete_source_branch_on_merge: true
+      
 workflows:
   terragrunt:
     plan:
@@ -12,11 +13,58 @@ workflows:
           command: 'echo "terraform${ATLANTIS_TERRAFORM_VERSION}"'
       - run: terragrunt plan -no-color --terragrunt-non-interactive -out=$PLANFILE
       - run: terragrunt show -no-color --terragrunt-non-interactive -json $PLANFILE > $SHOWFILE
-      - run: infracost breakdown --path $SHOWFILE --no-color true
-      - run: infracost diff --path $SHOWFILE --no-color true
+      - env:
+          name: INFRACOST_OUTPUT_TXT
+          command: 'echo "/tmp/$BASE_REPO_OWNER-$BASE_REPO_NAME-$PULL_NUM-$WORKSPACE-${REPO_REL_DIR//\//-}-infracost.txt"'
+      - env:
+          name: INFRACOST_OUTPUT_JSON
+          command: 'echo "/tmp/$BASE_REPO_OWNER-$BASE_REPO_NAME-$PULL_NUM-$WORKSPACE-${REPO_REL_DIR//\//-}-infracost.json"'
+      - run: echo "Generating Infracost cost estimates for ${REPO_REL_DIR//\//-}/$WORKSPACE..."
+      - run: |
+          infracost breakdown --path=$SHOWFILE \
+                              --format=table \
+                              --out-file=$INFRACOST_OUTPUT_TXT \
+                              --log-level=warn \
+                              --no-color \
+                              --show-skipped \
+                              --project-name=$REPO_REL_DIR
+      - run: cat $INFRACOST_OUTPUT_TXT
+      - run: |
+          infracost breakdown --path=$SHOWFILE \
+                              --format=json \
+                              --out-file=$INFRACOST_OUTPUT_JSON \
+                              --log-level=warn \
+                              --no-color \
+                              --show-skipped \
+                              --project-name=$REPO_REL_DIR
+      - run: |
+          curl -H "Authorization: token <token github>" \
+               https://api.github.com/repos/$BASE_REPO_OWNER/$BASE_REPO_NAME/pulls/$PULL_NUM/reviews > reviews.json
+      - run: |
+          echo '{"reviews":' > new_reviews.json
+          cat reviews.json >> new_reviews.json
+          echo '}' >> new_reviews.json
+          mv new_reviews.json reviews.json
+      - run: |
+          echo '[' > new_infracost.json
+          cat $INFRACOST_OUTPUT_JSON >> new_infracost.json
+          echo ']' >> new_infracost.json
+          mv new_infracost.json $INFRACOST_OUTPUT_JSON
+      - run: |
+          jq -s '.[0] + {"infracost": .[1]}' reviews.json $INFRACOST_OUTPUT_JSON > infracost_policy.json
+      - policy_check:
+          extra_args: [ "-p /home/atlantis/opa-policies", "--namespace", "infracost", "infracost_policy.json" ]
     apply:
       steps:
       - env:
           name: TERRAGRUNT_TFPATH
           command: 'echo "terraform${ATLANTIS_TERRAFORM_VERSION}"'
       - run: terragrunt apply -no-color --terragrunt-non-interactive $PLANFILE
+policies:
+  owners:
+    users:
+      - rentcars-devops
+  policy_sets:
+    - name: infracost
+      path: /home/atlantis/opa-policies
+      source: local
