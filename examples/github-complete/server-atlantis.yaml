@@ -38,7 +38,7 @@ workflows:
                               --show-skipped \
                               --project-name=$REPO_REL_DIR
       - run: |
-          curl -H "Authorization: token <token github>" \
+          curl -H "Authorization: token <token-do-github>" \
                https://api.github.com/repos/$BASE_REPO_OWNER/$BASE_REPO_NAME/pulls/$PULL_NUM/reviews > reviews.json
       - run: |
           echo '{"reviews":' > new_reviews.json
